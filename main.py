@@ -169,6 +169,8 @@ def air(sido: str = "제주"):
         items = body["body"].get("items", [])
     except HTTPException:
         raise
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"air api http {e.response.status_code}: {e.response.text[:150]}")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"air api error: {type(e).__name__}")
     return [
