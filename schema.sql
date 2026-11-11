@@ -36,3 +36,21 @@ select * from (values
   ('감귤 초콜릿 세트',    '여행 선물로 인기 만점',         14000, '🎁')
 ) as v(name, description, price, emoji)
 where not exists (select 1 from public.products);
+
+-- ===== 미세먼지(에어코리아) 이력 저장 =====
+create table if not exists public.air_readings (
+  id         bigint generated always as identity primary key,
+  sido       text      not null,
+  station    text      not null,
+  data_time  timestamp not null,
+  pm10       numeric,
+  pm25       numeric,
+  o3         numeric,
+  no2        numeric,
+  created_at timestamptz not null default now(),
+  unique (sido, station, data_time)
+);
+
+create index if not exists air_readings_sido_time_idx on public.air_readings(sido, data_time desc);
+
+alter table public.air_readings enable row level security;
