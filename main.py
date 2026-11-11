@@ -137,3 +137,47 @@ def supabase_health():
         return {"supabase": "connected"}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"supabase error: {type(e).__name__}: {str(e)[:200]}")
+
+
+# ---------- 한국환경공단 에어코리아 대기오염정보 (공공데이터포털) ----------
+import httpx
+
+AIR_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty"
+
+
+def grade_text(v):
+    return {"1": "좋음", "2": "보통", "3": "나쁨", "4": "매우나쁨"}.get(str(v), "정보없음")
+
+
+@app.get("/air")
+def air(sido: str = "제주"):
+    """시도별 실시간 측정소 대기오염 정보 (키는 서버에서만 사용)"""
+    key = os.getenv("DATA_GO_KR_KEY", "")
+    if not key:
+        raise HTTPException(status_code=500, detail="DATA_GO_KR_KEY not set")
+    params = {
+        "serviceKey": key, "returnType": "json", "numOfRows": 100,
+        "pageNo": 1, "sidoName": sido, "ver": "1.0",
+    }
+    try:
+        r = httpx.get(AIR_URL, params=params, timeout=10)
+        r.raise_for_status()
+        body = r.json()["response"]
+        header = body["header"]
+        if header.get("resultCode") != "00":
+            raise HTTPException(status_code=502, detail=f"api error: {header.get('resultMsg')}")
+        items = body["body"].get("items", [])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"air api error: {type(e).__name__}")
+    return [
+        {
+            "station": i.get("stationName"), "time": i.get("dataTime"),
+            "pm10": i.get("pm10Value"), "pm25": i.get("pm25Value"),
+            "o3": i.get("o3Value"), "no2": i.get("no2Value"),
+            "pm10_grade": grade_text(i.get("pm10Grade")),
+            "pm25_grade": grade_text(i.get("pm25Grade")),
+        }
+        for i in items
+    ]
